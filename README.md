@@ -35,3 +35,55 @@ nats-server -m 8222
 ```
 Buka di Web browser kita `0.0.0.0:8222` dan NATS Server aktif di port 4222
 
+## Subject berbasis messaging
+Dasarnya, NATS itu mempublish dan listening sebuah message, Keduanya bergantung kepada subject yang ada.
+
+### **Apa itu subject**
+![Subject](out/subject/Subject.png) </br>
+Sederhananya, subject hanyalah string dari nama character yang mana digunakan *publisher* dan *subscriber* untuk berkomunikasi, Jadi message akan berkomunikasi melalui subject.
+
+**Character yang di izinkan untuk penamaan subject**
+- `a to z`, `a to Z` (Case Sensitive, tidak boleh ada spasi)
+- Spesial Karakter: `.` digunakan sebagai pemisah dalam subject dan `*`, `>` sebagai wildcards
+
+
+### **Contoh Subject Hirarki**
+```
+time.us
+time.us.east
+time.us.east.atlanta
+time.eu.east
+time.eu.warsaw
+```
+
+## **Wildcards**
+- NATS hanya menyediakan 2 buah wildcards
+- Wildcard bisa digunakan untuk menggantikan `.` (pemisah subject)
+- Subscriber bisa menggunakan wildcard untuk listen ke multiple subject dengan single subscription.
+- Publisher tidak bisa menggunakan wildcards
+
+### Single Token (*)
+![Subject](out/wildcardSingleToken/WildcardSingleToken.png) </br>
+
+Pada contoh diatas subscriber ini akan mendapatkan `msg` `SUB time.*.east` dari subject yang berformat antara `time` dan `east` (hanya satu format token saja)
+misal:
+```bash
+# Di terima karena token (us) single
+time.us.east
+time.en.east
+
+# Tidak di terima karena token (us.en) multi
+time.us.en.east
+```
+
+### Multiple Token (>)
+![Subject](out/wildcardMultipleToken/WildcardMultipleToken.png) </br>
+
+- Pada contoh diatas `>` hanya bisa di aplikasikan di akhir subject saja, misal `SUB time.us.>`.
+- Sebagai contoh `time.us.>` akan cocok dengan `time.us.east` dan `time.us.east.atlanta`, sementara `time.us.*` hanya akan cocok dengan `time.us.east` karena `*` tidak bisa mencocokkan lebih dari satu token.
+
+### Mixing Wildcard
+`*` dapat digunakan beberapa kali di subject, sedangkan `>` hanya di akhir saja, misal: `*.*.east.>` akan bisa menerima `time.us.east.atlanta`
+
+### Rekomendasi Subject Token
+Di rekomendasikan agar tetap menjaga jumlah token yang masuk akal, maksimal 16 token

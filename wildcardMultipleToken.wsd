@@ -1,0 +1,13 @@
+@startuml WildcardMultipleToken
+
+[PUB time.us.east.atlanta] as pub
+node "NATS SERVER" as server
+[SUB time.us.>] as sub1
+[SUB time.us.east.atlanta] as sub2
+[SUB time.us.*] as sub3
+
+pub --> server : msg
+server --> sub1 : msg
+server --> sub2 :msg
+
+@enduml
