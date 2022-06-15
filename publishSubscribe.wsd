@@ -1,0 +1,14 @@
+@startuml PublishSubscribe
+
+[publisher] as pub
+node "NATS SERVER" as server
+[subscriber] as sub1
+[subscriber] as sub2
+[subscriber] as sub3
+
+pub --> server : msg
+server --> sub1 : msg
+server --> sub2 :msg
+server --> sub3 :msg
+
+@enduml
