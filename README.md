@@ -132,3 +132,24 @@ Dalam hal ini akan menggunakan [nats](https://docs.nats.io/nats-concepts/what-is
    nats pub msg.rif "Hallo Rif"
    nats pub msg.test.yog "Hallo Yog" #Tidak akan di terima oleh msg.* diterima oleh msg.>
    ```
+
+## Request-Reply
+
+Request-Reply adalah pola yang umum di *modern distribution systems*. Sebuah request di kirim, dan aplikasi menunggu response dengan waktu tertentu atau menerima secara asynchronous
+
+- NATS support Request-reply menggunakan mekanisme komunikasi inti - publish dan subscribe. **Responder** akan listen ke subject dan ketika ada **Requester** yang request, maka responder akan langsung meresponse ke reply subject. Reply subject disebut `inbox`.
+- Beberapa responder NATS dapat membentuk queue grup yang dynamic. Jadi tidak perlu secara manual add atau remove subscriber dari group untuk memulai dan berhenti mendistribusikan message, karena akan otomatis. Jadi kita bisa men scale up/down sesuai demand.
+- Karena NATS pada dasarnya publish-subscribe. Untuk observasi simple kita bisa melihat request dan response untuk mengukur latency.
+- Kelebihan NATS bahkan memperbolehkan multiple response.
+  
+![Request Reply](out/requestReply/RequestReply.png)
+
+### Latihan
+1. Membuat Reply Client Listener (Responder), yang akan menunggu request yang masuk, akan mengirim response ke **Requester**
+   ```bash
+   nats reply help.please 'OK, I CAN HELP!!!'
+   ```
+2. Membuat Request Client (Requester), yang akan menerima response dari **Responder**
+   ```bash
+   nats request help.please 'I need help!'
+   ```

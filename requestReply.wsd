@@ -1,0 +1,15 @@
+@startuml RequestReply
+[publisher] as pub
+node "NATS SERVER" as server
+[subscriber] as sub1
+[subscriber] as sub2
+[subscriber] as sub3
+usecase (Reply) as reply
+
+pub --> server : msg
+server --> sub1 : msg
+server ..> sub2 :msg
+server ..> sub3 :msg
+sub1 --> reply
+reply --> pub
+@enduml
