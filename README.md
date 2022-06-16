@@ -36,6 +36,25 @@ nats-server -m 8222
 ```
 Buka di Web browser kita `0.0.0.0:8222` dan NATS Server aktif di port 4222
 
+## NATS CLI
+```bash
+# Help NATS CLI
+nats -h
+
+# Cheat sheet untuk NATS
+nats cheat
+# Cheat sheet berdasarkan sections
+nats cheat --sections
+# Contoh
+nats cheat pub
+
+nats account info
+
+nast bench test --pub 10
+
+nats  bench test --pub 10 --msgs 1000000
+```
+
 ## Subject berbasis messaging
 Dasarnya, NATS itu mempublish dan listening sebuah message, Keduanya bergantung kepada subject yang ada.
 
@@ -153,3 +172,67 @@ Request-Reply adalah pola yang umum di *modern distribution systems*. Sebuah req
    ```bash
    nats request help.please 'I need help!'
    ```
+
+## Queue Group
+
+![Queue](out/queueGroup/QueueGroup.png) </br>
+Ketika subscriber me-register diri mereka sendiri untuk menerima message. Pola messaging 1:M `fan out` harus memastikan bahwa message yang di kirim oleh publisher, harus tersampaikan ke semua subscriber yang sudah ter-register. Terdapat fitur Queue yang bisa me-register subscriber untuk bagian dari queue disebut `queue groups`.
+
+- Rule penamaan queue disamakan dengan penamaan subject
+- Queue subscriber idealnya untuk scalling service
+
+### Publish Subscribe tanpa Queue
+
+1. Membuat publisher publisher
+   ```bash
+   nats pub --count=-1 --sleep 500ms demo.1 "{{Count}} {{TimeStamp}}"
+   ```
+
+2. Membuat 3 buah subscriber
+   ```bash
+   nats sub demo.1 # terminal 1
+   nats sub demo.1 # terminal 2
+   nats sub demo.1 # terminal 3
+   ```
+Pada contoh ini setiap message akan terkirim secara merata di tiap subscriber. 1:M
+
+### Publish Subscribe tanpa Queue
+
+1. Membuat publisher publisher
+   ```bash
+   nats pub --count=-1 --sleep 500ms demo.1 "{{Count}} {{TimeStamp}}"
+   ```
+2. Membuat 3 buah subscriber
+   ```bash
+   nats sub demo.1 --queue queue.saya # terminal 1
+   nats sub demo.1 --queue queue.saya # terminal 2
+   nats sub demo.1 --queue queue.saya # terminal 3
+   ```
+Pada contoh ini setiap message akan terkirim secara distribusi random, dan akan load balance secara otomatis `Load Balanced Queues`
+
+
+### Request Reply dengan Qeueu
+`nats reply` tidak hanya subscribe, tapi join otomatis ke queue group (`NATS-RPLY-22` by default)
+
+```bash
+nats reply menyapa "Ini Zulfikar Reply# {{Count}}" # terminal 1
+nats reply menyapa "Ini Arif Reply# {{Count}}" # terminal 2
+nats reply menyapa "Ini Noval Reply# {{Count}}" # terminal 3
+```
+
+```bash
+nats request menyapa --count 10 "Hai aku Doni {{Count}}"
+```
+
+### Keuntungan
+
+- Memastikan toleransi kesalahan pada aplikasi `Fault Tolerant`
+- Pemprosessan beban dapat di scale up atau down
+- Tidak perlu tambahan konfigurasi
+- Queue group di definisikan oleh aplikasi client bukan oleh konfigurasi server
+
+### Stream sebagai Queue
+JetStream stream juga bisa digunakan sebagai queue dengan men setting retention policy di `WorkQueuePolicy` dan memanfaatkan **pull consumers** untuk memudahkan mendapat horizontal scalability
+
+### Queue Geo Affinity
+Ketika kita memiliki NATS Super Cluster yang terhubung secara global, terdapat `automatic service geo-affinity` yang bisa meneruskan request message ke cluster region lain, jika cluster region target tidak tersedia

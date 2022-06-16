@@ -1,0 +1,14 @@
+@startuml QueueGroup
+
+[publisher] as pub
+node "Queue" as server
+[subscriber] as sub1
+[subscriber] as sub2
+[subscriber] as sub3
+
+pub --> server : msg 1, msg 2, msg 3
+server --> sub1 : msg 1
+server --> sub2 :msg 2
+server --> sub3 :msg 3
+
+@enduml
