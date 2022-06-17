@@ -236,3 +236,111 @@ JetStream stream juga bisa digunakan sebagai queue dengan men setting retention 
 
 ### Queue Geo Affinity
 Ketika kita memiliki NATS Super Cluster yang terhubung secara global, terdapat `automatic service geo-affinity` yang bisa meneruskan request message ke cluster region lain, jika cluster region target tidak tersedia
+
+
+
+# JetStream
+NATS memiliki `distributed persistence system` yang di panggil JetStream, yang memiliki fitur baru dan memiliki **QoS** yang berorder tinggi diatas Core NATS.
+
+JetStream terintegrasi di `nats-server` dan hanya butuh 1 *(2 atau 5 jika ingin memiliki fault tolerance terhadap 1 atau 2 kegagalan server secara bersamaan)* NATS Server agar JetStream diaktifkan untuk semua aplikasi client yang kita miliki.
+
+JetStream dibuat untuk menyelesaikan masalah yang di identifikasi dengan streaming technology saat ini, yakni kompleksitas *complexity*, kelemahan *fragility*, kuranf nya skalabilitas *lack scalability*.
+
+### Tujuan JetStream di kembangkan
+- System harus mudah di konfigurasi, dan di operasikan dan di amati.
+- System harus aman dan beroperasi dengan baik dengan NATS 2.0 security model.
+- System harus di scale horizontal dan berlaku untuk tingkat konsumsi yang tinggi.
+- System harus support multi use case.
+- System harus self heal dan selalu available.
+- System harus mempunyai API yang dekat dengan Code NATS.
+- System harus mengizinkan message NATS menjadi bagian stream yang dinginkan.
+- System harus manampilkan perilaku diagnostik payload.
+- System harus tidak mempunyai 3rd party aplikasi
+
+## Fungsi yang diaktifkan oleh JetStream
+
+### Temporal decoupling antara publisher dan subscriber
+Salah satu prinsip dasar publish/subscribe dibutuhkan coupling sementara antara publisher dan subscriber:
+- Subscriber hanya menerima message yang di publish ketika subscriber ini terhubung dengan `Messaging System` yaitu subscriber ini tidak akan menerima message yang di publish jika subscriber ini tidak aktif atau terputus dari messaging system.
+- Cara Tradisionalnya untuk `Messaging System` akan menyediakan temporal decoupling dari publisher dan subscriber melalui `durable subscriber` atau melalui Queue, namun tidak ada yang sempurna cara ini.
+   1. Durable Subscriber perlu di buat sebelum message di buat.
+   2. Queue maksudnya adalah distribusi beban kerja dan konsumsi, untuk tidak digunakan di mekanisme `request - reply`
+
+Bagaimanapun temporal decoupling ini sudah mainstream.
+Stream menangkap dan menyimpan message yang di publish pada 1 atau lebih subject dan mengizinkan client membuat subscriber (JetStream Consumer) yang bisa kapan saja di consume semuanya atau hanya beberapa message saja yang di simpan di Stream.
+
+### Reply policies
+JetStream support beberapa replay policies, tergantung pada aplikasi consumer yang akan menerimanya:
+- Semua message saat ini di simpan di stream, maksudnya reply yang sudah complete. Kita dapat memilih `reply policy` yaitu (kecepatan replaynya) menjadi:
+  1.  **Instant**, maksudnya message akan di kirim ke consumer secepat yang dia bisa ambil.
+  2.  **Original**, maksudnya message akan di kirim ke consumer pada rate mereka mempublishnya ke stream, sangat berguna untuk contoh staging production server
+- Message yang terakhir yang di simpan di stream, atau message yang terakhir untuk tiap - tiap subject (stream dapat mengambil lebih dari 1 subject)
+- Di mulai dari spesifik sequence number
+- Di mulai dari spesifik waktu start
+### Retention Policies dan Limits
+Stream tidak akan selalu terus berkembang selamanya (bertambah banyak) dan jetstream support multiple retention policy yang mana kemampuan untuk menentukan ukuran limit pada stream.
+#### Limits
+Kita bisa limit beberapa pada stream:
+- Max umur message
+- Max total stream (bytes)
+- Max jumlah message di stream
+- Max individual ukuran message
+- Discard Policy: Ketika limit tercapai, message baru di publish ke stream, kamu dapat memilih untuk membuang message yang terbaru atau sudah lama untuk memberi ruang untuk message yang baru.
+   1. Discard Old stream akan otomatis membuang message yang terbaru atau sudah lama untuk memberi ruang untuk message yang baru.
+   2. Discard New message yang masuk akan di tolak, dan JetStream akan mempublish return error yang menandakan limit telah tercapai
+
+- limit jumlah consumer yang dapat di define untuk stream pada titik waktu tertentu
+#### Retention Policies (Kebijakan Penyimpanan)
+- limits (default)
+- interest (message akan di simpan di stream selama ada consumer yang menerima message)
+- work queue (stream digunakan sebagai shared queue dan message akan di hapus setelah ada yang mengambil nya)
+### Persistent Distributed Storage
+Kita bisa memilih durability juga ketahanan penyimpanan pesan sesuai kebutuhan.
+- Penyimpan Memori
+- Penyimpanan File
+- Replication (1 (none), 2, 3) antara nats server untuk fault tolerant 
+### Stream Replication Factor
+Stream Replication Factor (R, sering mengacu pada jumlah `Replicas`) yang menentukan berapa banyak  tempat itu di simpan, yang memungkinkan agar menyesuaikan resiko terhadap penggunaan daya dan kinerja. Stream mudah di bangun kembali atau mungkin sementara base memori R=1 dan stream dapat mentoleransi beberapa downtime yang ada di base R=1
+
+- Replicas=1 tidak bisa beroperasi selama pemadaman server yang sedang melayani stream, Performace tinggi
+- Replicas=2 tidak ada keuntungan yang signifikan, di rekomendasikan replicas 3
+- Replicas=3 Dapat mentoleransi jika ada 1 server yang mati. Ideal balance antara resiko dan performance
+- Replicas=4 tidak ada keuntungan yang signifikan di bandingkan R=3
+- Replicas=5 Dapat mentoleransi 2 server yang melayani stream yang mati secara bersamaan. Mengurangi resiko dan mengorbankan performance
+### Mirroring Beetwen Streams
+Jetstream juga bisa memudahkan administrator me-mirrorkan stream. Sebagai contoh domain jetstream yang berbeda untuk dijadikan `disaster recovery`. Kita juga bisa definisikan salah satu stream sebagai submber untuk lainnya.
+### De-coupled flow control
+JetStream menyediakan de-coupled flow pada stream, flow control bukanlah `end to end` dimana publisher terbatas untuk publish tidak cepat dari semua consumers yang paling lambat dapat menerima, tapi terjadi secara individual antara aplikasi client (publishers atau consumers) dan nats-server.
+
+Ketika menggunakan JetStream, `Jetstream publish call` untuk mempublish ke stream yang terdapat mekanisme acknowledgement anatara publisher dan nats-server, kita yang menentukan apakah async atau sync (batch) Jetstream publish call.
+
+Pada sisi subscriber mengirim message dari nats server ke client aplikasi atau consume message dari stream juga di kontrol alirannya.
+### Exactly once message delivery
+Karena publish ke stream menggunakan `JetStream publish calls` di acknowledge oleh server, QoS yang akan di jamin oleh stream `at least once`, artinya meski dapat di andalkan dan bebas dari duplikasi
+- ada beberapa skenario kegagalan tertentu, yang dapat membuat aplikasi publisher (salah) mengira bahwa message tidak berhasil di publish maka di publish lagi, 
+- ada skenario kegagalan yang dapat menghasilkan aplikasi client meng *consume* acknowledgement yang hilang, dan karena itu message di kirim ulang oleh server ke consumer.
+  
+Skenario kegagalan tersebut meskipun jarang terjadi tetapi memang ada dan dapat mengakibatkan `duplicate message` pada level aplikasi
+### Consumers
+JetStream consumer adalah tampilan pada stream, mereka ini mensubscribe atau di pull oleh aplikasi client untuk memperoleh copy an (atau consume jika stream di set sebagai `work queue`) message yang di simpan di stream.
+#### Fast push consumers
+Aplikasi Client dapat memilih untuk menggunakan fast un-acknowledged `push` (ordered) consumers untuk menerima message secepat mungkin
+### Horizontally scalable pull consumers with batching
+Aplikasi client juga bisa menggunakan dan share pull consumer berdasarkan demand, support batch. Pull Consumers bisa dan dimaksudkan antar aplikasi (seperti group queue) dalam memberikan kemudahan dan transparansi horizontal scale pada pemprosessan dan konsumsi message dalam stream tanpa mempunyai sebagai contoh khawatir karena harus mendefinisikan partisi, atau khawatir tentang fault tolerant.
+Catatan: Menggunakan pull consumer bukan berarti kamu tidak akan mendapatkan update dari pesan baru yang di publish ke stream `pushed` secara realtime di aplikasi kamu, karena kamu dapat memberikan timeout ke consumer fetch call dan loop.
+
+### Consumer acknowledgements
+- Beberapa consumer support acknowledged semua message sampai dengan jumlah sequence yang di terima, beberapa consumer menyediakan QoS yang tinggi tetapi membutuhkan acknowledge penerimaan dan pemprosesan setiap pesan secara explisit serta jumlah waktu maksimal server akan menunggu acknowledgement untuk spesifik message sebelum di kirim (ke proses lain yang di lampirkan ke consumer).
+- Bisa mengirim balik negative acknowledgements
+- Bahkan bisa mengirim progress acknowledgements
+### Key Value Store
+JetStream merupakan persistance layer, dan streaming hanya salah satu dari fungsional yang di bangun di atas layer itu.
+
+Fungsi lainnya (umumnya tidak ada dalam messaging system) adalah **JetStream Key Value Store**: kemampuan untuk menyimpan, mengambil, delete value message yang terasosiasi dengan key, untuk watch (listen) perubahan yang terjadi pada key tersebut, dan bahkan untuk mengambil history (nilai yang ada dan yang di hapus) pada key tertentu
+### Object Store
+Object Store sama dengan key value store, tetapi di design dengan penyimpanan yang lebih besar `objects` (contoh file, atau yang bisa lebih besar lagi) by default 1 MB
+
+```bash
+nats-server -js -m 8222
+nats account info
+```
