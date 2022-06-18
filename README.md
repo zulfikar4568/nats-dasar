@@ -364,3 +364,15 @@ Stream adalah `message stores`, tiap stream mendefinisikan bagaimana message di 
 |Retention | Bagaimana retention di consider `LimitsPolicy`(default), `InterestPolicy`, `WorkQueuePolicy` |
 |Discard |Ketika stream mencapai limit `DiscardNew` akan menolak message baru, `DiscardOld` menghapus message lama |
 |Duplicates | untuk melacak message yang duplikat dalam (ns) |
+
+## Consumers
+Consumers dapat dipahami sebagai `views` di stream, Consumers mengkonsumsi message dari semua atau subset message yang di simpan di stream, sesuai dengan `subject filter` dan `replay policy` dan dapat digunakan oleh 1 aplikasi atau lebih. tidak apa-apa untuk membuat banyak consumers menunjuk pada stream yang sama.
+
+Consumers bisa `push` atau `pull`. Dimana `push` JetStream akan mengirim message secepat mungkin (sambil mematuhi `rate limit policy`) untuk subject yang kita pilih. Sedangkan `pull` mempunyai kontrol untuk menanyakan server untuk message. Pilihan ini tergantung use case tetapi typical nya aplikasi client butuh mendapatkan replay message dari stream kita gunakan `push`. Sedangkan use case scalling horizontal pemprosessan message dari stream gunakan `pull`.
+
+Berikut configurasi consumer
+
+| Item | Description |
+|------| ----------- |
+| AckPolicy | Bagaimana message harus di acknowledge, Jika ack wajib lalu tidak menerima message, (dengan konfigurasi `AckWait`) message akan dikirim ulang. </br> - **`AckExplicit`** (default) tiap individual message harus di acknowledge. </br> - **`AckNone`** tidak perlu men ack message apapun, server akan mengasumsi bahwa ack saat delivery. </br> - **`AckAll`** Jika kita menerima serangkaian message maka hanya perlu menandai message yang terakhir di terima saja. Otomatis message sebelumnya statusnya menjadi ack.
+| AckWait | Menunggu ack dalam (ns) bahwa server akan menunggu ack di tiap - tiap individual message setelah dikirim ke consumers. Jika ack tidak di terima, maka message akan dikirim ulang.
