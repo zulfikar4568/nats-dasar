@@ -340,7 +340,27 @@ Fungsi lainnya (umumnya tidak ada dalam messaging system) adalah **JetStream Key
 ### Object Store
 Object Store sama dengan key value store, tetapi di design dengan penyimpanan yang lebih besar `objects` (contoh file, atau yang bisa lebih besar lagi) by default 1 MB
 
-```bash
-nats-server -js -m 8222
-nats account info
-```
+## Stream
+Stream adalah `message stores`, tiap stream mendefinisikan bagaimana message di simpan seperti limit (durasi, size, interest) atau retention rate. Stream consume normal NATS Subject, tiap message yang di publish ke subject tersebut akan di simpan di sistem storage, Kita bisa kirim message dengan unknowledge delivery, meskipun menggunakan `Jetstream publish call` lebih bagus karna Jetstream server akan reply dengan acknowled (mengirim balik), untuk memastikan bahwa message berhasil di simpan.
+
+![](https://683899388-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LqMYcZML1bsXrN3Ezg0%2Fuploads%2Fgit-blob-dedcc17f082fa1e39497c54ed8191b6424ee7792%2Fstreams-and-consumers-75p%20(1).png?alt=media)
+
+- Gambar di atas bagaimana stream menyimpan semua message dari `ORDERS.*`
+- Streams dapat consume banyak subject. Di sini ada `ORDERS.*`, bahkan kita juga bisa consume dengan subject `SHIPPING.*`, tetapi di gambar tersebut hanya menunjukan contoh order.
+- Stream support berbagai retention policies, berikut list nya
+
+|Item | Description|
+|-----|------------|
+|Name | Penamaan Stream tidak menggunakan spasi, tabs, period`.`, lebih besar`>`, asterisk`*`
+|Storage | Tipe penyimpanan, `File` atau `Memori` |
+|Subjects | List subjects untuk di consume |
+|Replicas | Berapa banyak replicas untuk menyimpan setiap message di cluster JetStream, max 5 |
+|MaxAge | Max umur message di stream (ns) |
+|MaxBytes | Berapa banyak bytes yang mungkin disimpan di stream, jika sudah melebihi size akan menghapus message lama atau me-reject message baru |
+|MaxMsgs | Berapa banyak jumlah message yang mungkin di simpan di stream, jika sudah melebihi jumlah message yang di tentukan  akan menghapus message lama atau me-reject message baru |
+|MaxMsgSize | Ukuran terbesar message yang di perbolehkan oleh stream |
+|MaxConsumers | Berapa banyak consumer yang dapat di define di stream, default -1 (unlimited) |
+|NoAck | menonaktifkan acknowledge, jika message sudah di terima oleh stream (tidak mendapat respon success) |
+|Retention | Bagaimana retention di consider `LimitsPolicy`(default), `InterestPolicy`, `WorkQueuePolicy` |
+|Discard |Ketika stream mencapai limit `DiscardNew` akan menolak message baru, `DiscardOld` menghapus message lama |
+|Duplicates | untuk melacak message yang duplikat dalam (ns) |
