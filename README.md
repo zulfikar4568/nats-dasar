@@ -548,3 +548,99 @@ nats object seal bucket file
 # Hapus bucket
 nats object rm bucket_file
 ```
+
+# Security NATS
+Koneksi dengan encrypted TLS
+
+## Buat TLS dengan [mkcert](https://github.com/FiloSottile/mkcert)
+### Install mkcert
+```bash
+brew install mkcert
+```
+
+### Buat TLS Certificate
+```bash
+mkcert -install
+mkcert -cert-file server-cert.pem -key-file server-key.pem localhost ::1
+```
+
+## Authentication
+### 1. Dengan Token
+- Dengan Plaintext Token
+   ```bash
+   authorization {
+       token: "s3cr3t"
+   }
+   ```
+   atau dengan
+   ```bash
+   nats-server --auth s3cr3t
+   ```
+   Contoh Cara Koneksi
+   ```bash
+   nats sub -s nats://s3cr3t@localhost:4222 ">"
+   ```
+- Deklarasi dengan Bcrypted di NATS tool
+   ```bash
+   nats server passwd
+   ```
+   Contoh password yang dimasukan: `inipanjangnyaharuslebihdari22character`
+   ```bash
+   authorization {
+       token: "$2a$11$mDGRKbUX31IqQ1/s1aP.eeEs.3ORkZXT198eqaYi0F7w1NwNjdufe"
+   }
+   ```
+   Contoh Cara Koneksi
+   ```bash
+   nats sub -s nats://inipanjangnyaharuslebihdari22character@localhost:4222 ">"
+   ```
+### 2. Dengan Username dan Password
+1. Dengan Plaintext password
+   ```bash
+   authorization: {
+       user: a,
+       password: b
+   }
+   ```
+   atau dengan
+   ```bash
+   nats-server --user a --pass b
+   ```
+   Dengan multiple User
+   ```bash
+   authorization: {
+       users: [
+           {user: a, password: b},
+           {user: b, password: a}
+       ]
+   }
+   ```
+2. Dengan Bycrpted Password
+   ```
+   nats server passwd
+   ```
+   Tambahkan di file konfigurasi kita
+   ```bash
+   authorization: {
+       users: [
+           {user: a, password: "$2a$11$V1qrpBt8/SLfEBr4NJq4T.2mg8chx8.MTblUiTBOLV3MKDeAy.f7u"},
+           ...
+       ]
+   }
+   ```
+Contoh Cara Koneksi
+```bash
+nats sub --user=a --password=b -s nats://localhost:4222 ">"
+```
+
+**Catatan: Kita tidak bisa menggunakan metode token dan user/pass bersamaan**
+# Reloading a Configuration
+Jika kita ingin menghapus / menambah konfigurasi, dan kita ingin mengimplementasi perubahan untuk reload tanpa restart server dan disconnect client maka kita gunakan
+```bash
+nats-server --signal reload
+```
+# Aplikasikan Konfigurasi di NATS
+```bash
+nats-server -c config/server.conf -ms 8222
+```
+Jalankan `https://localhost:8222`
