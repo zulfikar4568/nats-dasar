@@ -459,3 +459,51 @@ nats consumer ls -a ORDERS
 #Print info consumer
 nats consumer info -a ORDERS NEW
 ```
+
+## Key/Value Store
+
+Jetstream mempunyai fitur penyimpanan key/value, yang mana client dapat membuat bucket.
+Kita bisa gunakan beberapa KV bucket dalam beberapa operasi
+
+- put: Mengaitkan nilai dengan key
+- get: Mengambil nilai dari key
+- delete: hapus nilai yang terkait dengan key
+- purge: hapus semua nilai yang terkait dengan semua key
+- create: Mengaitkan nilai dengan key jika mendefine nilai
+- update: compare & set (membandingkan dan menukar) nilai pada key
+- keys: ambil copy semua kunci (dengan nilai dan yang terkait)
+
+Kita bisa set limit pada bucket
+- Max ukuran bucket
+- Max ukuran tiap satu nilai
+- TTL: Berapa lama nilai yang akan disimpan
+  
+Terakhir
+- watch: amati perubahan yang terjadi pada key
+- watch all: amati semua perubahan yang terjadi pada semua key di bucket
+- history: Ambil history dari nilai
+
+### Latihan
+```bash
+# print list bucket
+nats kv ls
+
+# Bikin bucket kv
+nats kv add bucket_saya
+
+# Bikin key value pada bucket
+nats kv put bucket_saya key1 "hai zul"
+
+# Ambil nilai key dari bucket
+nats kv get bucket_saya key1
+
+# Hapus key dari bucket
+nats kv del bucket_saya key1
+
+# Amati perubahan pada bucket
+nats kv watch bucket_saya
+nats kv put bucket_saya Key1 Value2
+
+# Hapus bucket
+nats kv rm bucket_saya
+```
