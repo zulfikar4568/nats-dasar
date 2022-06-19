@@ -507,3 +507,44 @@ nats kv put bucket_saya Key1 Value2
 # Hapus bucket
 nats kv rm bucket_saya
 ```
+
+## Object Store
+Object Store hampir sama dengan Key Value, perbedaannya adalah pada ukuran nilai (value) pada key value store hanya 1 MB (default). Sedangkan pada Object Store bisa ukuran apa saja, Object Store mengimplementasi potongan (chunking) mekanisme, bisa mengambil dan menyimpan files
+
+### Latihan
+```bash
+# Bikin file uji
+touch test.txt
+echo 'File Percobaan' test.txt
+cat test.txt
+
+# Print list object bucket
+nats object ls
+
+# Bikin object bucket
+nats object add bucket_file
+
+# Simpan file di bucket
+nats object put bucket_file ./test.txt
+
+# Print isi semua dari bucket
+nats object ls bucket_file
+
+# Ambil file dari bucket
+nats object get bucket_file test.txt
+
+# Hapus file dari bucket
+nats object rm bucket_file test.txt
+
+# Print informasi tentang bucket
+nats object info bucket_file
+
+# Amati perubahan bucket
+nats object watch bucket_file
+
+# Segel bucket
+nats object seal bucket file
+
+# Hapus bucket
+nats object rm bucket_file
+```
