@@ -3,7 +3,7 @@
 
 Agar bisa publish/subscribe message subject, kita harus konfigurasi:
 - NATS_URL = Format string, yang digunakan untuk membangun koneksi (plain TCP, TLS, or Websocket).
-  1. TLS encrypted only TCP connection `tls://...`
+  1. TLS encrypted hanya TCP connection `tls://...`
   2. TLS encrypted jika di konfigurasikan atau konfigurasi plain un-encrypted TCP `nats://...`
   3. Websocket `ws://...`
   4. Koneksi ke cluster `nats://server1:port1,nats://server2:port2`
@@ -246,6 +246,27 @@ JetStream terintegrasi di `nats-server` dan hanya butuh 1 *(2 atau 5 jika ingin 
 
 JetStream dibuat untuk menyelesaikan masalah yang di identifikasi dengan streaming technology saat ini, yakni kompleksitas *complexity*, kelemahan *fragility*, kuranf nya skalabilitas *lack scalability*.
 
+```bash
+
+# Jalankang server JetStream
+nats-server -js -m 8222
+
+# Check JetStream 
+nats account info
+
+# Membuat Stream
+nats stream add stream_saya
+
+#Info
+nats stream info stream_saya
+
+# Publish message ke stream
+nats pub test --count=1000 --sleep 1s "publication #{{Count}} @ {{TimeStamp}}"
+
+# Watch consumer
+nats consumer next stream_saya pull_consumer --count 1000
+```
+
 ### Tujuan JetStream di kembangkan
 - System harus mudah di konfigurasi, dan di operasikan dan di amati.
 - System harus aman dan beroperasi dengan baik dengan NATS 2.0 security model.
@@ -376,3 +397,65 @@ Berikut configurasi consumer
 |------| ----------- |
 | AckPolicy | Bagaimana message harus di acknowledge, Jika ack wajib lalu tidak menerima message, (dengan konfigurasi `AckWait`) message akan dikirim ulang. </br> - **`AckExplicit`** (default) tiap individual message harus di acknowledge. </br> - **`AckNone`** tidak perlu men ack message apapun, server akan mengasumsi bahwa ack saat delivery. </br> - **`AckAll`** Jika kita menerima serangkaian message maka hanya perlu menandai message yang terakhir di terima saja. Otomatis message sebelumnya statusnya menjadi ack.
 | AckWait | Menunggu ack dalam (ns) bahwa server akan menunggu ack di tiap - tiap individual message setelah dikirim ke consumers. Jika ack tidak di terima, maka message akan dikirim ulang.
+| DeliveryPolicy/</br>OptStartSec/</br>OptStartTimer | Ketika consumer pertama kali dibuat, kita bisa menentukan spesifikasi di stream dimana kita ingin memulai menerima messages dengan `DeliveryPolicy`. </br> - **`DeliverAll`**(Default) Consumer akan menerima message dari awal message diterima. </br> - **`DeliverLast`** Ketika pertama kali consume message. Consumer akan memulai menerima message dengan message yang terakhir di terima stream. </br> - **`DeliverLastSubject`** Ketika pertama kali consume message, dimulai dengan yang terbaru untuk setiap subject yang di filter saat ini. </br> - **`DeliverNew`** Ketika pertama kali consume message, consumer hanya akan memulai menerima message yang sudah dibuat setelah consumer dibuat. .</br> - **`DeliverByStartSequence`** Ketika pertama kali menerima message, dimulai dari set message tertentu, consumer harus menentukan `OptStartSeq`, urutan sequence tertentu untuk consumer mulai consume. </br> - **`DeliverByStartTime`** Ketika pertama kali consume message, message mulai diterima pada atau setelah waktu ini. |
+| DeliverySubject | Subject untuk men-observasi message yang dikirim. Dengan ini membuat `push consumer` dan `pull consumer` tidak perlu delivery subject yang static. Jika kita ingin mendistribusi message antara subscriber ke consumer maka kita perlu men spesifikasi nama qeueu group. |
+| Durable (Nama) | Nama dari consumer, server yang mana yang akan melacak, mengizinkan melanjutkan consume di tempat yang ditinggalkan. Secara default consumer bersifat sementara, untuk membuat tahan lama (durable), maka set nama nya. |
+| FilterSubject | Ketika consume dari subject wildcard, kita dapat memilih himpunan bagian saja dari full wildcard untuk menerima message. |
+| MaxAckPending | Mengimplementasikan bentuk sederhana 1:M flow control. Men set jumlah max message tanpa acknowledgement, ketika limit tercapai delivey message akan di suspend. Kita tidak bisa menggunakan `AckNonePolicy`. -1 = unlimited. |
+| MaxDeliver | Maximum frekuensi message yang akan diterima, berulaku untuk ack. |
+| RateLimit | Digunakan untuk membatasi pengiriman message ke consumer. Dalam bit/s. |
+| ReplayPolicy | Ini hanya akan di aplikasikan jika `DeliverAll`, `DeliverByStartSequence` or `DeliverByStartTime`. Karena membaca message bukan dari akhir Jika `ReplayOriginal` message dalam stream akan di push ke client pada rate yang sama. Jika `ReplayInstant` (default), message akan dikirim secepat mungkin, ketika mematuhi `AckPolicy`, `MaxAckPending`, dan cliet yang mempunyai kemampuan consume message itu. |
+| SampleFrequency | Set persentasi acknowledgement yang harus di ambil samplenya untuk observasi, dari 0 - 100 dalam string, contoh nilai yang valid `30` dan `30%`.
+
+## Latihan
+![](https://683899388-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LqMYcZML1bsXrN3Ezg0%2Fuploads%2Fgit-blob-dedcc17f082fa1e39497c54ed8191b6424ee7792%2Fstreams-and-consumers-75p%20(1).png?alt=media)
+
+- Banyak relasi subject yang disimpan di stream.
+- Consumer bisa memiliki mode operasi yang berbeda, dan hanya menerima beberapa bagian message.
+- Beberapa Acknowledgement mode support.
+
+1. Order masuk di `ORDERS.received` di kirim ke Consumer `NEW` yang jika berhasil akan membuat message baru di `ORDERS.processed`.
+2. Ketika message masuk di `ORDERS.processed` maka Consumer `DISPATCH` akan menerimanya dan setelah selesai di proses akan membuat `ORDERS.completed` yang akan di simpan di stream.
+3. Operasi - operasi ini adalah `pull` yang artinya mereka adalah `work queue` dan dapat di scale horizontal. Semuanya butuh acknowledgement untuk memastikan tidak ada orders yang hilang atau missing.
+4. Semua message akan di deliver ke Consumer `MONITOR` tanpa ada acknowledgement menggunakan Pub/Sub semantik, mereka di push ke monitor.
+5. Saat message di acknowledgement di `NEW` dan `DISPATCH` Consumer. Percentage mereka adalah sample dan message yang menunjukan jumlah pegiriman ulang, ack delay, dll. Di kirim ke sistem monitoring.
+
+```bash
+# Check help Stream
+nats stream --help
+
+# Membuat Stream
+nats stream add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=-1 --storage file --retention limits --max-msg-size=-1 --discard=old
+
+# Print list semua Stream
+nats stream ls
+
+# Print info Stream ORDERS
+nats stream info ORDERS
+
+# kosongkan message yang ada di stream
+nats stream purge
+
+# hapus stream
+nats stream rm
+```
+
+Membuat Consumer
+```bash
+# Check help consumer
+nats consumer --help
+
+# Membuat Consumer NEW
+nats consumer add ORDERS NEW --filter ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+
+nats consumer add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+
+nats consumer add ORDERS MONITOR --filter '' --ack none --target monitor.ORDERS --deliver last --replay instant
+
+# Print semua consumer
+nats consumer ls
+nats consumer ls -a ORDERS
+
+#Print info consumer
+nats consumer info -a ORDERS NEW
+```
