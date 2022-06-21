@@ -196,7 +196,7 @@ Ketika subscriber me-register diri mereka sendiri untuk menerima message. Pola m
    ```
 Pada contoh ini setiap message akan terkirim secara merata di tiap subscriber. 1:M
 
-### Publish Subscribe tanpa Queue
+### Publish Subscribe dengan Queue
 
 1. Membuat publisher publisher
    ```bash
@@ -634,6 +634,204 @@ nats sub --user=a --password=b -s nats://localhost:4222 ">"
 ```
 
 **Catatan: Kita tidak bisa menggunakan metode token dan user/pass bersamaan**
+
+## Authorization
+NATS Support Authorization menggunakan subject level permission pada per user. Authorization ini tersedia pada multi level authentication via `users` list.
+
+Setiap permission menentukan user apakah dapat publish atau subscribe. Untuk complex configuration, kita dapat menspesifikasikan permission object yang secara explicit mengizinkan atau melarang subject.
+
+Spesial di dalam authorization map adalah `default_permissions`. Ketika di define maka permission akan diaplikasikan ke seluruh user yang tidak punya authorization.
+
+### Permission Configuration Map
+`map` permission menspesifikasikan subject yang dapat di subscribe dan di publish ke client tertentu.
+
+|Property | Description|
+|---------|------------|
+|publish| subject, list subject yang dapat di publish oleh client. |
+|subscribe | subject, list subject yang dapat di subscribe oleh client. Dalam context ini memungkinkan memberikan nama queue (opsional): `<subject> <queueu>` untuk mendefinisikan queue group permission. Permission ini juga bisa menggunakan wildcard `.*` dan `.>` |
+|allow_responses | true atau false, default false |
+
+#### Contoh dengan Variable
+```bash
+ADMIN_PASS: "admin123"
+CLIENT_PASS: "client123"
+SERVICE_PASS: "service123"
+OTHER_PASS: "other123"
+
+authorization {
+  default_permissions = {
+    publish = "DEFAULT_PUB.*"
+    subscribe = ["PUBLIC.>", "_INBOX.>"]
+  }
+  ADMIN = {
+    publish = ">"
+    subscribe = ">"
+  }
+  REQUESTOR = {
+    publish = ["req.a", "req.b"]
+    subscribe = "_INBOX.>"
+  }
+  RESPONDER = {
+    publish = "_INBOX.>"
+    subscribe = ["req.a", "req.b"]
+  }
+  users = [
+    {user: admin,   password: $ADMIN_PASS, permissions: $ADMIN}
+    {user: client,  password: $CLIENT_PASS, permissions: $REQUESTOR}
+    {user: service,  password: $SERVICE_PASS, permissions: $RESPONDER}
+    {user: other, password: $OTHER_PASS}
+  ]
+}
+```
+Coba publish atau subscribe nya
+```bash
+# Client harusnya tidak bisa subscribe pada seluruh subject, ada violation
+nats sub --user=client --password=client123 -s nats://localhost:4222 ">" 
+
+# Client dapat subscribe ke "_INBOX.>"
+nats sub --user=client --password=client123 -s nats://localhost:4222 "_INBOX.>"
+
+# Other tidak bisa subscriber ke ">"
+nats sub --user=other --password=other123 -s nats://localhost:4222 ">"
+
+# Other tidak assign ke permissions mana pun yang artinya dia akan di binding ke default_permissions
+nats sub --user=other --password=other123 -s nats://localhost:4222 "PUBLIC.>"
+```
+
+### Permission Map
+Permission map mengizinkan kita secara list explisit untuk allow dan deny, kita bisa deklarasi keduanya sekaligus, jika kita mendefinisikannya secara tumpang tindih maka deny akan lebih di prioritaskan.
+|Property | Description |
+|---------|-------------|
+| allow | list nama subject yang di izinkan untuk client yang diassign |
+| deny | list nama subject yang akan di tolak untuk client yang di assign |
+
+### Contoh Permission map
+```bash
+authorization {
+  users = [
+    {
+      user: admin
+      password: admin123
+      permissions: {
+        publish: ">"
+        subscribe: ">"
+      }
+    }
+    { 
+      user: other
+      password: other123
+      permissions: {
+        publish: {
+            deny: ">"
+        }, 
+        subscribe: {
+            allow: "client.>"
+        }
+      }
+    }
+  ]
+}
+```
+Coba publish atau subscribe nya
+```bash
+# Other tidak bisa sub ke >
+nats sub --user=other --password=other123 -s nats://localhost:4222 ">"
+
+# Other bisa subscribe ke client.>
+nats sub --user=other --password=other123 -s nats://localhost:4222 "client.>"
+
+# Other tidak akan bisa publish
+nats pub test --user=other --password=other123 -s nats://localhost:4222 "haii"
+```
+
+#### Allow Response Map
+`allow_responses` memungkinkan kita mengkonfigurasi jumlah maksimum response dan berapa lama permission nya valid. Ketika di set true, hanya satu response yang di izinkan (default).
+
+|Property | Description |
+|---------|-------------|
+| max | Maksimal jumlah response message yang dapat di publish |
+| expires | Jumlah waktu permission yang valid, 1s, 1m, 1h. Default nya tidak mempunyai limit time.
+### Contoh allow_responses
+
+```bash
+authorization {
+  users: [
+    { 
+      user: a,
+      password: a 
+    }
+    { 
+      user: b,
+      password: b,
+      permissions: {
+        subscribe: "b",
+        allow_responses: true
+        }
+      }
+    { 
+      user: c,
+      password: c,
+      permissions: {
+        subscribe: "c",
+        allow_responses: { 
+          max: 5,
+          expires: "1m"
+        }
+      } 
+    }
+  ]
+}
+```
+Contoh Req/Reply
+```bash
+# Tidak ada permission
+nats reply c --user=b --password=b -s nats://localhost:4222 'respon dari b'
+
+# Terminal 1
+nats reply q --user=b --password=b -s nats://localhost:4222 'respon dari b'
+
+# Terminal 2
+nats reply q --user=c --password=c -s nats://localhost:4222 'respon dari c'
+
+# Terminal 3
+nats request q --user=a --password=a -s nats://localhost:4222 'req dari a'
+```
+
+### Queue Permission
+```bash
+authorization {
+   users = [
+    {
+      user: "a", password: "a", permissions: {
+        sub: {
+          allow: ["test queue"]
+        }
+      }
+    },
+    {
+      user: "b", password: "b", permissions: {
+        sub: {
+          allow: ["test", "test v1", "test v1.>", "test *.dev"]
+          deny: ["> *.prod"]
+        }
+      }
+    }
+  ]
+}
+```
+Coba publish atau subscribe dan queue nya
+```bash
+# User a hanya bisa subscribe ke test subject dan "queue" sebagai nama queuenya
+nats sub test --queue queue --user=a --password=a -s nats://localhost:4222
+
+# User a tidak bisa subscribe ke subject test2
+nats sub test2 --queue queue --user=a --password=a -s nats://localhost:4222
+# User a tidak bisa subscribe ke queue queue2
+nats sub test --queue queue2 --user=a --password=a -s nats://localhost:4222
+# User a tidak bisa subscribe ke subject test tanpa queue
+nats sub test --user=a --password=a -s nats://localhost:4222
+```
+
 # Reloading a Configuration
 Jika kita ingin menghapus / menambah konfigurasi, dan kita ingin mengimplementasi perubahan untuk reload tanpa restart server dan disconnect client maka kita gunakan
 ```bash
