@@ -751,7 +751,7 @@ nats pub test --user=other --password=other123 -s nats://localhost:4222 "haii"
 |---------|-------------|
 | max | Maksimal jumlah response message yang dapat di publish |
 | expires | Jumlah waktu permission yang valid, 1s, 1m, 1h. Default nya tidak mempunyai limit time.
-### Contoh allow_responses
+### Contoh `allow_responses`
 
 ```bash
 authorization {
