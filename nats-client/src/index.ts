@@ -2,6 +2,8 @@ import { connect } from 'nats'
 (async () => {
   try {
     const nc = await connect({
+      reconnectTimeWait: 10 * 1000, //10s
+      pingInterval: 20 * 1000,
       debug: true,
       tls: {
         caFile: './cert/rootCA.pem',
@@ -18,7 +20,7 @@ import { connect } from 'nats'
     
     // do something with the connection
     console.log("Doing Something")
-    
+
     // close the connection
     await nc.close();
     // check if the close was OK
