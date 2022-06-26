@@ -559,11 +559,20 @@ brew install mkcert
 ```
 
 ### Buat TLS Certificate
+Make Server Key TLS
 ```bash
 mkcert -install
+cd nats-client/cert
 mkcert -cert-file server-cert.pem -key-file server-key.pem localhost ::1
+mkcert -CAROOT
+cd /Users/zulfikar4568/Library/Application\ Support/mkcert/
+cp rootCA.pem ~/Documents/nats-client/cert/rootCA.pem
 ```
-
+Make Client TLS
+```bash
+cd nats-client/cert
+mkcert -client -cert-file client-cert.pem -key-file client-key.pem localhost ::1 email@localhost
+```
 ## Authentication
 ### 1. Dengan Token
 - Dengan Plaintext Token
@@ -842,3 +851,5 @@ nats-server --signal reload
 nats-server -c config/server.conf -ms 8222
 ```
 Jalankan `https://localhost:8222`
+
+Try [Nats Client](nats-client/README.md)
