@@ -1,7 +1,8 @@
-import { connect } from 'nats'
+import { connect, NatsConnection } from 'nats'
+import { natsSubscribe } from './async-subscribe';
 (async () => {
   try {
-    const nc = await connect({
+    const nc: NatsConnection = await connect({
       reconnectTimeWait: 10 * 1000, //10s
       pingInterval: 20 * 1000,
       debug: true,
@@ -14,10 +15,11 @@ import { connect } from 'nats'
     });
     // Do something with the connection
     console.log(`connected to ${nc.getServer()}`);
+    natsSubscribe(nc);
 
     // this promise indicates the client closed
     const done = nc.closed();
-    
+ 
     // do something with the connection
     console.log("Doing Something")
 
